@@ -21,3 +21,6 @@ steps:
 
 images:
 - gcr.io/$PROJECT_ID/insighta-app
+
+options:
+  logging: CLOUD_LOGGING_ONLY
