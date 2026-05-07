@@ -1,0 +1,391 @@
+Flask App
+   ↓
+Docker
+   ↓
+Push to GitHub
+   ↓
+GitHub Actions (CI/CD)
+   ↓
+Deploy to Google Cloud Run
+   ↓
+Public URL
+
+
+Step 1 — Install required tools:
+
+python --version
+docker --version
+docker --version    --   docker run hello-world
+git --version
+gcloud --version
+
+insighta-flask-app
+
+Step 2 — Create project folder
+
+mkdir insighta-cloudrun
+cd insighta-cloudrun
+
+Step 3 — Create Flask app
+
+in vscode open an file named app.py
+
+------------------------------------------------------------
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return '<h1>Hello, Insighta! Regards, Nimara.</h1>'
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
+------------------------------------------------------------
+	
+Step 4 — Create requirements file
+
+create requirements.txt file
+
+add -- > flask
+		 gunicorn
+Step 5 — Create Dockerfile
+
+Create:
+
+Dockerfile
+
+Add:
+-----------------------------------------------------------------------
+FROM python:3.11
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install -r requirements.txt
+
+CMD exec gunicorn --bind :8080 --workers 1 --threads 8 app:app
+
+
+Step 6 — Test Docker locally
+-----------------------------------------------------------------------
+
+Build image:
+
+docker build -t insighta-app .                  **********************
+
+docker image list: docker image ls                                  **********************
+
+Run container:
+
+docker run --name insighta-container -p 8080:8080 insighta-app			**********************
+
+container list : docker ps                          ****************************
+
+docker rm insighta-container
+docker run -d --rm --name insighta-container -p 8080:8080 insighta-app
+docker stop guid or hash
+
+
+
+Open browser:
+
+http://localhost:8080
+
+You should see:
+
+Hello, Insighta! Regards, Nimara.
+
+
+Step 7 — Create GitHub repository
+
+Go to GitHub and create repo:
+
+insighta-cloudrun
+
+Then push code:
+
+git init
+git add .
+git commit -m "initial commit"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/insighta-cloudrun.git
+git push -u origin main
+
+Step 8 — Deploy to Google Cloud Run
+
+Login:
+
+gcloud auth login                                                       **********************
+
+check project list :
+
+gcloud projects list                                                    *********************
+
+Set project:
+
+gcloud config set project your_project_id                               **********************
+
+Enable services:
+
+gcloud services enable run.googleapis.com								**********************
+
+Build container:
+
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/insighta-app			**********************
+
+Deploy:
+
+
+gcloud run deploy insighta-app --image gcr.io/YOUR_PROJECT_ID/insighta-app --platform managed --region europe-west1 --allow-unauthenticated     **********************
+
+Google will give you a URL like:
+
+https://insighta-app-abc123.run.app
+
+Check service list:
+
+ gcloud run services list                                             **********************
+ 
+Step 9 — Bonus (CI/CD)
+
+Create folder:
+
+.github/workflows
+
+Create file:
+
+deploy.yml
+
+Add:
+
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Google Cloud Auth
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Deploy
+      uses: google-github-actions/deploy-cloudrun@v1
+      with:
+        service: insighta-app
+        image: gcr.io/YOUR_PROJECT_ID/insighta-app
+        region: europe-west1
+
+Now whenever you push:
+
+git push
+
+GitHub will automatically deploy.
+
+What you will send them
+
+Just send:
+
+Cloud Run URL
+GitHub repository
+
+Example:
+
+https://insighta-app-xyz.run.app
+https://github.com/nimara/insighta-cloudrun
+
+Service URL: https://insighta-app-1034382071068.us-central1.run.app
+
+
+
+Step 9 — Implement CI/CD with GitHub Actions
+1️⃣ Create a Google Cloud Service Account
+
+Go to:
+
+Google Cloud Console → IAM & Admin → Service Accounts
+
+Click Create Service Account
+
+Name:
+
+github-actions-deployer
+
+Click Create and Continue
+
+2️⃣ Give Required Permissions
+
+Add these roles:
+
+Cloud Run Admin
+
+Storage Admin
+
+Service Account User
+
+Cloud Build Editor
+
+Click Done
+
+These permissions allow GitHub to:
+
+build containers
+
+push images
+
+deploy to Cloud Run
+
+3️⃣ Generate a JSON Key
+
+Open the service account.
+
+Go to Keys → Add Key → Create new key
+
+Select:
+
+JSON
+
+Download the file.
+
+Example:
+
+github-actions-key.json
+4️⃣ Add the Key to GitHub Secrets
+
+Open your GitHub repository:
+
+https://github.com/YOUR_USERNAME/insighta-cloudrun
+
+Then go to:
+
+Settings → Secrets and variables → Actions
+
+Click:
+
+New repository secret
+
+Name:
+
+GCP_SA_KEY
+
+Paste the entire JSON file content.
+
+Save.
+
+5️⃣ Create the GitHub Actions Workflow
+
+Inside your project folder create:
+
+.github/workflows
+
+Then create a file:
+
+deploy.yml
+
+Your project should look like:
+
+insighta-cloudrun
+│
+├ app.py
+├ Dockerfile
+├ requirements.txt
+└ .github
+    └ workflows
+        └ deploy.yml
+6️⃣ Add the CI/CD Workflow Code
+
+Replace YOUR_PROJECT_ID with your real Google Cloud project ID.
+
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+    - name: Set up gcloud
+      uses: google-github-actions/setup-gcloud@v1
+
+    - name: Build Docker Image
+      run: |
+        gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/insighta-app
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy insighta-app \
+        --image gcr.io/YOUR_PROJECT_ID/insighta-app \
+        --platform managed \
+        --region europe-west1 \
+        --allow-unauthenticated
+7️⃣ Push the Workflow
+
+Run:
+
+git add .
+git commit -m "Add CI/CD pipeline"
+git push
+8️⃣ Verify the Pipeline
+
+Go to your GitHub repo → Actions tab
+
+You should see:
+
+Deploy to Cloud Run
+
+The workflow will:
+
+1️⃣ Checkout code
+2️⃣ Authenticate with Google Cloud
+3️⃣ Build Docker image
+4️⃣ Deploy to Cloud Run
+
+9️⃣ Test CI/CD
+
+Modify your app slightly:
+
+return "<h1>Hello, Insighta! CI/CD works.</h1>"
+
+Push again:
+
+git add .
+git commit -m "Test CI/CD"
+git push
+
+GitHub Actions will automatically redeploy the app.
+
+What You Submit (as requested in the assessment)
+
+Send them two things:
+
+1️⃣ Cloud Run URL
+
+Example:
+
+https://insighta-app-1034382071068.us-central1.run.app
+2️⃣ GitHub Repository
+
+Example:
+
+https://github.com/nimara/insighta-cloudrun
